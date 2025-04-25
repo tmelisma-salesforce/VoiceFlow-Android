@@ -13,7 +13,6 @@ import androidx.core.net.toUri
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult.parseActivityResult
 import com.journeyapps.barcodescanner.ScanOptions
-import com.salesforce.voiceflow.R.string.login_with_qr_code
 import com.salesforce.androidsdk.accounts.UserAccountManager.USER_SWITCH_INTENT_ACTION
 import com.salesforce.androidsdk.ui.LoginActivity
 import com.salesforce.androidsdk.ui.LoginViewModel.BottomBarButton
@@ -62,11 +61,6 @@ class QrCodeEnabledLoginActivity : LoginActivity() {
             IntentFilter(USER_SWITCH_INTENT_ACTION),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
-
-        // Add the Log In With QR Code custom button.
-        viewModel.customBottomBarButton.value = BottomBarButton(getString(login_with_qr_code)) {
-            onLoginWithQrCodeTapped()
-        }
     }
 
     // endregion
