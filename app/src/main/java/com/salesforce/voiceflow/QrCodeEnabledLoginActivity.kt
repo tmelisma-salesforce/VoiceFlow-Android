@@ -15,7 +15,6 @@ import com.journeyapps.barcodescanner.ScanIntentResult.parseActivityResult
 import com.journeyapps.barcodescanner.ScanOptions
 import com.salesforce.androidsdk.accounts.UserAccountManager.USER_SWITCH_INTENT_ACTION
 import com.salesforce.androidsdk.ui.LoginActivity
-import com.salesforce.androidsdk.ui.LoginViewModel.BottomBarButton
 
 /**
  * A subclass of Salesforce Mobile SDK's login activity that enables log in via
@@ -65,19 +64,6 @@ class QrCodeEnabledLoginActivity : LoginActivity() {
 
     // endregion
     // region User Interface Events
-
-    /**
-     * An action for the "Log In With QR Code" button which starts the QR code reader.
-     */
-    private fun onLoginWithQrCodeTapped() = loginWithQrCodeActivityResultLauncher.launch(
-        ScanContract().createIntent(
-            this,
-            ScanOptions()
-        )
-    )
-
-    // endregion
-    // region Private Implementation For QR Code Log In
 
     /** A broadcast intent receiver to finish this activity on successful authentication. */
     private var finishOnUserSwitchBroadcastReceiver: BroadcastReceiver? = null
