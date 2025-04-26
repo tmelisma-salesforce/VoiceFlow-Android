@@ -1,131 +1,197 @@
-/*
- * Copyright (c) 2025 Toni Melisma
- */
 package com.salesforce.voiceflow
 
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.salesforce.androidsdk.app.SalesforceSDKManager
-import com.salesforce.androidsdk.mobilesync.app.MobileSyncSDKManager
+// Import Salesforce base Activity and related classes
+import com.salesforce.androidsdk.app.SalesforceSDKManager // Keep for logout
 import com.salesforce.androidsdk.rest.ApiVersionStrings
+// No ClientManager import needed here as we receive client via callback
 import com.salesforce.androidsdk.rest.RestClient
 import com.salesforce.androidsdk.rest.RestRequest
 import com.salesforce.androidsdk.rest.RestResponse
-import com.salesforce.androidsdk.ui.SalesforceActivity
+import com.salesforce.androidsdk.ui.SalesforceActivity // Use SalesforceActivity base class
+import com.salesforce.speechsdk.tts.SynthesizerModel
+import com.salesforce.speechsdk.tts.TextToSpeechManager
+import org.json.JSONObject
 import java.io.UnsupportedEncodingException
 
+// Extend SalesforceActivity for proper SDK lifecycle management
+// It implements SalesforceActivityInterface
 class MainActivity : SalesforceActivity() {
 
+    // Member variable to hold the RestClient instance once obtained via onResume(client)
     private var client: RestClient? = null
-    private lateinit var namesListState: MutableState<List<String>>
+
+    // Hold the TTS Manager instance
+    private lateinit var ttsManager: TextToSpeechManager
+
+    // Compose state for the list of names
+    private val namesListState = mutableStateOf<List<String>>(emptyList())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        MobileSyncSDKManager.getInstance().setViewNavigationVisibility(this)
 
+        // Initialize TTS Manager
+        ttsManager = TextToSpeechManager(
+            context = this,
+            model = SynthesizerModel.OS // Use OS default TTS engine
+        )
+
+        // Set the Compose content
         setContent {
-            namesListState = remember { mutableStateOf(emptyList()) }
-
             MaterialTheme {
+                // Pass the current state and event handlers to the Composable
                 MainScreen(
-                    names = namesListState.value,
-                    onFetchContacts = { fetchData("SELECT Name FROM Contact", namesListState) },
-                    onFetchAccounts = { fetchData("SELECT Name FROM Account", namesListState) },
-                    onClear = { namesListState.value = emptyList() },
-                    onLogout = { SalesforceSDKManager.getInstance().logout(this@MainActivity) }
+                    names = namesListState.value, // Use the state variable
+                    onFetchContacts = { fetchData("SELECT Name FROM Contact") },
+                    onFetchAccounts = { fetchData("SELECT Name FROM Account") },
+                    onClear = { namesListState.value = emptyList() }, // Update state directly
+                    onLogout = { SalesforceSDKManager.getInstance().logout(this@MainActivity) },
+                    onSayHello = { speakHello() }
                 )
             }
         }
     }
 
-
-    override fun onResume(client: RestClient?) {
+    // This method IS CALLED BY the SalesforceActivity base class framework
+    // automatically after login/passcode checks and after the RestClient is ready
+    // because isBuildRestClientOnResumeEnabled defaults to true.
+    // We implement it to receive and store the client.
+    override fun onResume(client: RestClient) {
+        // Store the client instance provided by the base activity framework
         this.client = client
+
+        // You COULD trigger an initial data load here if you wanted data immediately
+        // after the client becomes available on resume.
+        // Example: if (namesListState.value.isEmpty()) {
+        //             fetchData("SELECT Name FROM Contact")
+        //          }
     }
 
-    private fun fetchData(soql: String, state: MutableState<List<String>>) {
+    // No need for the parameterless onResume override or manual fetchRestClient method
+
+    private fun fetchData(soql: String) {
+        // Use the stored client instance. Check if it's initialized by onResume(client).
         val currentClient = this.client
         if (currentClient == null) {
-            showError("Salesforce client not available.")
+            // This might happen if fetchData is called before onResume(client) completes,
+            // or if authentication fails silently.
+            showError("Salesforce client not available. Please wait or try logging in again.")
             return
         }
 
-        val restRequest = try {
+        val restRequest: RestRequest = try {
+            // Use ApiVersionStrings.getVersionNumber(this) which reads from context/manifest
             RestRequest.getRequestForQuery(ApiVersionStrings.getVersionNumber(this), soql)
         } catch (e: UnsupportedEncodingException) {
             showError("Error creating request: ${e.message}")
             return
+        } catch (e: Exception) {
+            // Catch other potential exceptions during request creation
+            showError("Error preparing request: ${e.message}")
+            return
         }
 
+
+        // Call sendAsync using the stored client instance
         currentClient.sendAsync(restRequest, object : RestClient.AsyncRequestCallback {
             override fun onSuccess(request: RestRequest, result: RestResponse) {
-                result.consumeQuietly()
+                result.consumeQuietly() // Consume before potentially switching threads
                 try {
                     if (result.isSuccess) {
                         val records = result.asJSONObject().getJSONArray("records")
                         val fetchedNames = mutableListOf<String>()
                         for (i in 0..<records.length()) {
-                            fetchedNames.add(records.getJSONObject(i).getString("Name"))
+                            // Defensive check for "Name" field
+                            if (records.getJSONObject(i).has("Name")) {
+                                fetchedNames.add(records.getJSONObject(i).getString("Name"))
+                            }
                         }
+                        // Update Compose state on the UI thread
                         runOnUiThread {
-                            state.value = fetchedNames
+                            namesListState.value = fetchedNames
                         }
                     } else {
+                        // Handle API errors (e.g., bad SOQL, permissions)
                         showError("API Error: ${result.statusCode} - ${result.asString()}")
                         runOnUiThread {
-                            state.value = emptyList()
+                            namesListState.value = emptyList()
                         }
                     }
                 } catch (e: Exception) {
-                    onError(e)
+                    // Handle JSON parsing or other exceptions from the success block
+                    onError(e) // Delegate to onError for consistent handling
                 }
             }
 
             override fun onError(exception: Exception) {
-                showError("Network Error: ${exception.message}")
+                // Handle network errors or exceptions from onSuccess block
+                showError("Data Fetch Error: ${exception.message}")
                 runOnUiThread {
-                    state.value = emptyList()
+                    // Clear list on error
+                    namesListState.value = emptyList()
                 }
             }
         })
     }
 
+    private fun speakHello() {
+        try {
+            ttsManager.speak("Hello Salesforce Developer")
+        } catch (e: Exception) {
+            showError("TTS Error: ${e.message ?: "Failed to speak"}")
+        }
+    }
+
     private fun showError(message: String) {
+        // Ensure Toast is shown on the UI thread
         runOnUiThread {
             Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
         }
     }
+
+    // onPause might be automatically handled by SalesforceActivity regarding client state.
+    // No specific action needed here unless you have other resources to release.
+    // override fun onPause() {
+    //     super.onPause()
+    // }
+
+    override fun onDestroy() {
+        // Clean up TTS Manager
+        if (::ttsManager.isInitialized) {
+            ttsManager.shutdown()
+        }
+        super.onDestroy()
+        // Client cleanup is likely handled by SDKManager/base class on logout/destroy
+    }
+
+    // These methods from SalesforceActivityInterface are required by the base class
+    // but you may not need to add custom logic unless your app requires specific
+    // actions on logout completion or user switch.
+    override fun onLogoutComplete() {
+        // Add any specific cleanup logic needed AFTER logout finishes
+    }
+
+    override fun onUserSwitched() {
+        // Add any logic needed when the user account changes
+        // May need to clear cached data and reset UI state.
+        this.client = null // Clear the old client
+        runOnUiThread { namesListState.value = emptyList() }
+        // The base class onResume will likely trigger getting the new user's client.
+    }
 }
 
 
+// --- Compose UI (MainScreen Composable remains the same) ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -133,7 +199,8 @@ fun MainScreen(
     onFetchContacts: () -> Unit,
     onFetchAccounts: () -> Unit,
     onClear: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSayHello: () -> Unit // Callback for the new button
 ) {
     Scaffold(
         topBar = {
@@ -158,6 +225,7 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
+            // Action Buttons Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -173,14 +241,32 @@ fun MainScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp)) // Space between rows
 
+            // Say Hello Button
+            Button(onClick = onSayHello, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text("Say Hello")
+            }
+
+
+            Spacer(modifier = Modifier.height(16.dp)) // Space before list
+
+            // Results List
             if (names.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) { // Use weight to fill remaining space
                     Text("List is empty.")
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) { // Use weight to fill remaining space
                     items(names) { name ->
                         Text(
                             text = name,

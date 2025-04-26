@@ -1,0 +1,11 @@
+<resources>
+    <string name="speechsdk_microphone_default_rationale_text">To record audio, permission is needed to access your microphone. Please tap Allow in the following permissions dialog.</string>
+    <string name="speechsdk_microphone_permission_required">Microphone permission is required.</string>
+    <string name="speechsdk_cancel">Cancel</string>
+    <string name="speechsdk_proceed">Proceed</string>
+
+    <string name="speechsdk_user_denied_permission_to_microphone">Permission to access microphone is denied.</string>
+    <string name="speechsdk_session_in_progress">A session is already in progress and needs to be stopped before starting another.</string>
+    <string name="speechsdk_recognition_not_supported">Speech recognition is not supported by this device.</string>
+    <string name="speechsdk_on_device_recognition_not_supported">On-Device speech recognition is not supported by this device.</string>
+</resources>
