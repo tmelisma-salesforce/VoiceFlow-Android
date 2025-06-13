@@ -26,170 +26,79 @@
  */
 package com.salesforce.voiceflow
 
-import android.content.Intent
-import android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
-import android.net.Uri
-import android.os.Build.VERSION.SDK_INT
-import android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 import android.os.Bundle
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ArrayAdapter
-import android.widget.ListView
-import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
-import androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsCompat.Type.displayCutout
-import androidx.core.view.WindowInsetsCompat.Type.systemBars
-import androidx.core.view.updatePadding
-import com.salesforce.voiceflow.R.id.root
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.salesforce.androidsdk.app.SalesforceSDKManager
-import com.salesforce.androidsdk.mobilesync.app.MobileSyncSDKManager
-import com.salesforce.androidsdk.rest.ApiVersionStrings
 import com.salesforce.androidsdk.rest.RestClient
-import com.salesforce.androidsdk.rest.RestClient.AsyncRequestCallback
-import com.salesforce.androidsdk.rest.RestRequest
-import com.salesforce.androidsdk.rest.RestResponse
-import com.salesforce.androidsdk.ui.LoginActivity
-import com.salesforce.androidsdk.ui.LoginActivity.Companion.EXTRA_KEY_FRONTDOOR_BRIDGE_URL
-import com.salesforce.androidsdk.ui.LoginActivity.Companion.EXTRA_KEY_PKCE_CODE_VERIFIER
-import com.salesforce.androidsdk.ui.LoginActivity.Companion.isQrCodeLoginUrlIntent
-import com.salesforce.androidsdk.ui.LoginActivity.Companion.qrCodeLoginUrlJsonParameterName
-import com.salesforce.androidsdk.ui.LoginActivity.Companion.qrCodeLoginUrlPath
 import com.salesforce.androidsdk.ui.SalesforceActivity
-import com.salesforce.androidsdk.util.SalesforceSDKLogger.e
-import java.io.UnsupportedEncodingException
-import java.util.*
+import com.salesforce.voiceflow.ui.screens.MainScreen
+import com.salesforce.voiceflow.ui.theme.VoiceflowTheme
+
+object AppDestinations {
+    const val AUTH_ROUTE = "auth"
+    const val MAIN_ROUTE = "main"
+}
 
 /**
  * Main activity
  */
 class MainActivity : SalesforceActivity() {
 
+    private val viewModel: MainViewModel by viewModels()
     private var client: RestClient? = null
-    private var listAdapter: ArrayAdapter<String>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Set Theme
-        val isDarkTheme = MobileSyncSDKManager.getInstance().isDarkTheme
-        setTheme(if (isDarkTheme) R.style.SalesforceSDK_Dark else R.style.SalesforceSDK)
-        MobileSyncSDKManager.getInstance().setViewNavigationVisibility(this)
+        setContent {
+            val navController = rememberNavController()
+            val uiState by viewModel.uiState.collectAsState()
 
-        // Setup view
-        setContentView(R.layout.main)
+            VoiceflowTheme {
+                NavHost(navController = navController, startDestination = AppDestinations.AUTH_ROUTE) {
+                    composable(AppDestinations.AUTH_ROUTE) {
+                        // Placeholder for the login screen handled by the Salesforce SDK
+                    }
+                    composable(AppDestinations.MAIN_ROUTE) {
+                        MainScreen(
+                            uiState = uiState,
+                            onFetchContacts = { viewModel.fetchData("SELECT Name FROM Contact") },
+                            onFetchAccounts = { viewModel.fetchData("SELECT Name FROM Account") },
+                            onClear = { viewModel.clearData() },
+                            onLogout = {
+                                SalesforceSDKManager.getInstance().logout(this@MainActivity)
+                                navController.navigate(AppDestinations.AUTH_ROUTE) {
+                                    popUpTo(AppDestinations.MAIN_ROUTE) {
+                                        inclusive = true
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
 
-        // Fix UI being drawn behind status and navigation bars on Android 15
-        if (SDK_INT > UPSIDE_DOWN_CAKE) {
-            enableEdgeToEdge()
-            setOnApplyWindowInsetsListener(findViewById(root)) { listenerView, windowInsets ->
-                val insets = windowInsets.getInsets(
-                    systemBars() or displayCutout()
-                )
-
-                listenerView.updatePadding(insets.left, insets.top, insets.right, insets.bottom)
-                WindowInsetsCompat.CONSUMED
+                LaunchedEffect(client) {
+                    client?.let {
+                        viewModel.onClientReady(it)
+                        navController.navigate(AppDestinations.MAIN_ROUTE) {
+                            popUpTo(AppDestinations.AUTH_ROUTE) {
+                                inclusive = true
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    override fun onResume() {
-        // Hide everything until we are logged in
-        findViewById<ViewGroup>(root).visibility = View.INVISIBLE
-
-        // Create list adapter
-        listAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, ArrayList())
-        findViewById<ListView>(R.id.contacts_list).adapter = listAdapter
-
-        // Check for and use the intent's QR code login URL if applicable.
-        // Uncomment when enabling log in via Salesforce UI Bridge API generated QR codes
-        //intent.data?.let { useQrCodeLogInUrl(it) }
-
-        super.onResume()
-    }
-
     override fun onResume(client: RestClient?) {
-        // Keeping reference to rest client
         this.client = client
-
-        // Show everything
-        findViewById<ViewGroup>(root).visibility = View.VISIBLE
-    }
-
-    /**
-     * Called when "Logout" button is clicked.
-
-     * @param v
-     */
-    @Suppress("UNUSED", "UNUSED_PARAMETER")
-    fun onLogoutClick(v: View) {
-        SalesforceSDKManager.getInstance().logout(this)
-    }
-
-    /**
-     * Called when "Clear" button is clicked.
-
-     * @param v
-     */
-    @Suppress("UNUSED_PARAMETER")
-    fun onClearClick(v: View) {
-        listAdapter!!.clear()
-    }
-
-    /**
-     * Called when "Fetch Contacts" button is clicked
-
-     * @param v
-     * *
-     * @throws UnsupportedEncodingException
-     */
-    @Throws(UnsupportedEncodingException::class)
-    @Suppress("UNUSED_PARAMETER")
-    fun onFetchContactsClick(v: View) {
-        sendRequest("SELECT Name FROM Contact")
-    }
-
-    /**
-     * Called when "Fetch Accounts" button is clicked.
-     *
-     * @param v
-     * @throws UnsupportedEncodingException
-     */
-    @Throws(UnsupportedEncodingException::class)
-    @Suppress("UNUSED_PARAMETER")
-    fun onFetchAccountsClick(v: View) {
-        sendRequest("SELECT Name FROM Account")
-    }
-
-    @Throws(UnsupportedEncodingException::class)
-    private fun sendRequest(soql: String) {
-        val restRequest = RestRequest.getRequestForQuery(ApiVersionStrings.getVersionNumber(this), soql)
-
-        client!!.sendAsync(restRequest, object : AsyncRequestCallback {
-            override fun onSuccess(request: RestRequest, result: RestResponse) {
-                result.consumeQuietly() // consume before going back to main thread
-                runOnUiThread {
-                    try {
-                        listAdapter!!.clear()
-                        val records = result.asJSONObject().getJSONArray("records")
-                        for (i in 0..<records.length()) {
-                            listAdapter!!.add(records.getJSONObject(i).getString("Name"))
-                        }
-                    } catch (e: Exception) {
-                        onError(e)
-                    }
-                }
-            }
-
-            override fun onError(exception: Exception) {
-                runOnUiThread {
-                    Toast.makeText(this@MainActivity,
-                            this@MainActivity.getString(R.string.sf__generic_error, exception.toString()),
-                            Toast.LENGTH_LONG).show()
-                }
-            }
-        })
     }
 }

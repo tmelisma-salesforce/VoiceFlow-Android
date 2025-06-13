@@ -1,56 +1,97 @@
 plugins {
-    android
-    `kotlin-android`
-}
-
-dependencies {
-    implementation("com.salesforce.mobilesdk:MobileSync:13.0.0")
-    implementation("androidx.compose.runtime:runtime-android:1.7.7")
-    // Comment when disabling log in via Salesforce UI Bridge API generated QR codes
-    implementation("com.google.zxing:core:3.5.3")
-    // Comment when disabling log in via Salesforce UI Bridge API generated QR codes
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    id("com.android.application")
+    id("kotlin-android")
 }
 
 android {
     namespace = "com.salesforce.voiceflow"
-
     compileSdk = 35
 
     defaultConfig {
-        targetSdk = 35
+        applicationId = "com.salesforce.voiceflow"
         minSdk = 28
-    }
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
 
-    buildTypes {
-        debug {
-            enableAndroidTestCoverage = true
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary = true
         }
     }
 
-    packaging {
-        resources {
-            excludes += setOf(
-                "META-INF/LICENSE",
-                "META-INF/LICENSE.txt",
-                "META-INF/DEPENDENCIES",
-                "META-INF/NOTICE"
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
             )
         }
     }
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+
     buildFeatures {
-        renderScript = true
-        aidl = true
-        buildConfig = true
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.14"
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
 
-repositories {
-    google()
-    mavenCentral()
-}
+dependencies {
+    // Salesforce
+    implementation("com.salesforce.mobilesdk:SalesforceSDK:13.0.1")
+    implementation("com.salesforce.mobilesdk:MobileSync:13.0.1")
 
-kotlin {
-    jvmToolchain(21)
+
+    // Core KTX
+    implementation("androidx.core:core-ktx:1.16.0")
+
+    // Lifecycle
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.1")
+
+
+    // Activity
+    implementation("androidx.activity:activity-compose:1.10.1")
+
+    // Compose
+    val composeBom = platform("androidx.compose:compose-bom:2024.05.00")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
+
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+
+    // Navigation
+    implementation("androidx.navigation:navigation-compose:2.9.0")
+
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
