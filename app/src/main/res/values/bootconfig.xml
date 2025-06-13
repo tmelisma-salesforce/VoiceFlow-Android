@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+    <string name="remoteAccessConsumerKey">3MVG9yAAFCYW6OqXe1sQ6yABE3XGMZupyo8he.8sbr_p7ZuWPLOmGush586nHh5qrDJ7YTiQZSO5owzAG8UpX</string>
+    <string name="oauthRedirectURI">voiceflow:///voiceflow/oauth/done</string>
+    <string-array name="oauthScopes">
+        <item>api</item>
+        <item>web</item>
+    </string-array>
+</resources>
