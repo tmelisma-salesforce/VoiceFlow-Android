@@ -40,7 +40,7 @@ import com.salesforce.voiceflow.R
 @Composable
 fun MainScreen(
     uiState: MainUiState,
-    onFetchContacts: () -> Unit,
+    onFetchObjects: () -> Unit,
     onFetchAccounts: () -> Unit,
     onClear: () -> Unit,
     onLogout: () -> Unit
@@ -88,8 +88,8 @@ fun MainScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Button(onClick = onFetchContacts) {
-                        Text(stringResource(id = R.string.fetch_contacts_button))
+                    Button(onClick = onFetchObjects) {
+                        Text("Describe Global")
                     }
                     Button(onClick = onFetchAccounts) {
                         Text(stringResource(id = R.string.fetch_accounts_button))

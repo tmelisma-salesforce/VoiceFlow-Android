@@ -54,8 +54,8 @@ class MainActivity : ComponentActivity() {
                     composable(AppDestinations.MAIN_ROUTE) {
                         MainScreen(
                             uiState = uiState,
-                                    onFetchContacts = { viewModel.fetchContacts() },
-                                    onFetchAccounts = { viewModel.fetchAccounts() },
+                            onFetchObjects = { viewModel.fetchObjects() },
+                            onFetchAccounts = { viewModel.fetchAccounts() },
                             onClear = { viewModel.clearData() },
                             onLogout = {
                                 SalesforceSDKManager.getInstance().logout(this@MainActivity)

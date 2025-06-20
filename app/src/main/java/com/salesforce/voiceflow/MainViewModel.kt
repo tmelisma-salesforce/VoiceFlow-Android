@@ -19,7 +19,7 @@ class MainViewModel(private val repository: SalesforceRepository) : ViewModel() 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState = _uiState.asStateFlow()
 
-    fun fetchContacts() = fetchData { repository.getContactNames() }
+    fun fetchObjects() = fetchData { repository.describeGlobal() }
     fun fetchAccounts() = fetchData { repository.getAccountNames() }
 
     private fun fetchData(fetch: suspend () -> Result<List<String>>) {
